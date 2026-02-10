@@ -1,6 +1,10 @@
 import { config } from './config.js';
 import { DBHelper } from './db.js';
 
+/**
+ * Synchronize toots from Mastodon to the local database.
+ * Performs a forward sync (new toots) and then a backward sync (history).
+ */
 export async function syncToots() {
   const db = new DBHelper();
   const baseUrl = `${config.mastodonUrl}/api/v1/accounts/${config.accountId}/statuses`;
@@ -8,19 +12,17 @@ export async function syncToots() {
   try {
     const latestId = db.getLatestId();
     const oldestId = db.getOldestId();
-    console.log(`Starting sync. Latest ID: ${latestId || 'None'}, Oldest ID: ${oldestId || 'None'}`);
+    console.log(`Starting sync. Latest: ${latestId || 'None'}, Oldest: ${oldestId || 'None'}`);
 
-    // 1. Forward Sync (get new toots)
+    // 1. Forward Sync
     if (latestId) {
       console.log('Forward sync: Fetching new toots...');
       await fetchPages(baseUrl, { min_id: latestId }, db);
     }
 
-    // 2. Backward Sync (fill history)
-    // If we have no oldestId, it means DB allows empty. We start from "now" (no params).
-    // If we have oldestId, we start from there (max_id = oldestId).
+    // 2. Backward Sync
     const startBackfillFrom = oldestId ? { max_id: oldestId } : {};
-    console.log(`Backward sync: Fetching older toots (starting from ${JSON.stringify(startBackfillFrom)})...`);
+    console.log(`Backward sync: Fetching older toots...`);
     await fetchPages(baseUrl, startBackfillFrom, db);
 
     console.log('Sync complete.');
@@ -31,6 +33,13 @@ export async function syncToots() {
   }
 }
 
+/**
+ * Fetch pages of toots from the Mastodon API.
+ * Handles pagination automatically using the 'Link' header.
+ * @param {string} url 
+ * @param {Object} params 
+ * @param {import('./db').DBHelper} db 
+ */
 async function fetchPages(url, params = {}, db) {
   let nextUrl = new URL(url);
   Object.keys(params).forEach(key => nextUrl.searchParams.append(key, params[key]));
@@ -81,27 +90,12 @@ async function fetchPages(url, params = {}, db) {
     const linkHeader = response.headers.get('Link');
     const links = parseLinkHeader(linkHeader);
     
-    // If we are backfilling (initially empty DB), we want 'next' (older pages).
-    // If we are updating (min_id set), we usually just want the one page or 'prev' (newer pages) but Mastodon pagination with min_id is tricky.
-    // Usually 'prev' points to newer items, 'next' points to older items.
-    
+    // params.min_id means we are going forward (newer). 
+    // Otherwise we are going backward (older).
     if (params.min_id) {
-       // We are fetching NEWER items. We want to go UP/FORWARD.
-       // Mastodon's 'prev' link usually points to newer items.
-       // However, often one request with min_id gets you the chunk you missed.
-       // If there's a 'prev' link, it means "there are even newer items".
-       if (links.prev) {
-          nextUrl = links.prev;
-       } else {
-          nextUrl = null;
-       }
+       nextUrl = links.prev ? links.prev : null;
     } else {
-       // We are fetching OLDER items (backfill).
-       if (links.next) {
-          nextUrl = links.next;
-       } else {
-          nextUrl = null;
-       }
+       nextUrl = links.next ? links.next : null;
     }
     
     // Safety delay
