@@ -1,18 +1,18 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { config } from './config.js';
+import { logger } from './logger.js';
 
 /**
  * Continuously find valid toots without fetched media and download their attachments.
  * @param {import('./db').DBHelper} db 
  */
 export async function processBackfill(db) {
-  console.log('Starting media backfill...');
+  logger.info('Starting media backfill...');
   
   while (true) {
     const tootRecord = db.getUnprocessedMediaToot();
     if (!tootRecord) {
-      console.log('Media backfill complete (no more unprocessed toots).');
+      logger.info('Media backfill complete (no more unprocessed toots).');
       break;
     }
 
@@ -23,7 +23,7 @@ export async function processBackfill(db) {
       }
       db.markMediaFetched(tootRecord.id);
     } catch (e) {
-      console.error(`Failed to process media for toot ${tootRecord.id}:`, e);
+      logger.error(`Failed to process media for toot ${tootRecord.id}: ${e}`);
       // We might want to mark it as fetched anyway to avoid infinite loop, 
       // or add a retry count. For now, we'll mark it fetched to proceed.
       db.markMediaFetched(tootRecord.id); 
@@ -62,7 +62,7 @@ async function downloadMediaForToot(toot) {
       // File doesn't exist, proceed
     }
 
-    console.log(`Downloading media for toot ${toot.id}: ${filename}`);
+    logger.info(`Downloading media for toot ${toot.id}: ${filename}`);
     
     try {
         const response = await fetch(attachment.url);
@@ -70,7 +70,7 @@ async function downloadMediaForToot(toot) {
         const buffer = await response.arrayBuffer();
         await fs.writeFile(filePath, Buffer.from(buffer));
     } catch (e) {
-        console.error(`Failed to download ${attachment.url}:`, e);
+        logger.error(`Failed to download ${attachment.url}: ${e}`);
     }
   }
 }

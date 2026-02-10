@@ -4,6 +4,7 @@ import { config } from './config.js';
 
 import { processBackfill } from './media.js';
 import { DBHelper } from './db.js';
+import { logger } from './logger.js';
 
 /**
  * Main Entry Point.
@@ -11,12 +12,13 @@ import { DBHelper } from './db.js';
  * 2. Schedules hourly syncs.
  */
 
-console.log(`Starting Mastodon Toot History Service...`);
-console.log(`Target: ${config.mastodonUrl} (Account: ${config.accountId})`);
-console.log(`Schedule: ${config.cronSchedule}`);
+logger.info(`Starting Mastodon Toot History Service...`);
+logger.info(`Target: ${config.mastodonUrl} (Account: ${config.accountId})`);
+logger.info(`DB Path: ${config.dbPath}`);
+logger.info(`Schedule: ${config.cronSchedule}`);
 
 async function runSyncAndBackfill() {
-    console.log(`[${new Date().toISOString()}] Starting sync...`);
+    logger.info(`Starting sync...`);
     await syncToots();
     
     // After sync, run backfill
@@ -26,11 +28,11 @@ async function runSyncAndBackfill() {
     } finally {
         db.close();
     }
-    console.log(`[${new Date().toISOString()}] Sync & Media Backfill complete.`);
+    logger.info(`Sync & Media Backfill complete.`);
 }
 
 // Run on start
-console.log('Running initial sync...');
+logger.info('Running initial sync...');
 runSyncAndBackfill();
 
 // Schedule Job
@@ -40,6 +42,6 @@ const job = schedule.scheduleJob(config.cronSchedule, async () => {
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
-  console.log('Stopping service...');
+  logger.info('Stopping service...');
   schedule.gracefulShutdown().then(() => process.exit(0));
 });

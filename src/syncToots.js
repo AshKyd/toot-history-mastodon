@@ -1,5 +1,6 @@
 import { config } from './config.js';
 import { DBHelper } from './db.js';
+import { logger } from './logger.js';
 
 /**
  * Synchronize toots from Mastodon to the local database.
@@ -12,22 +13,22 @@ export async function syncToots() {
   try {
     const latestId = db.getLatestId();
     const oldestId = db.getOldestId();
-    console.log(`Starting sync. Latest: ${latestId || 'None'}, Oldest: ${oldestId || 'None'}`);
+    logger.info(`Starting sync. Latest: ${latestId || 'None'}, Oldest: ${oldestId || 'None'}`);
 
     // 1. Forward Sync
     if (latestId) {
-      console.log('Forward sync: Fetching new toots...');
+      logger.info('Forward sync: Fetching new toots...');
       await fetchPages(baseUrl, { min_id: latestId }, db);
     }
 
     // 2. Backward Sync
     const startBackfillFrom = oldestId ? { max_id: oldestId } : {};
-    console.log(`Backward sync: Fetching older toots...`);
+    logger.info(`Backward sync: Fetching older toots...`);
     await fetchPages(baseUrl, startBackfillFrom, db);
 
-    console.log('Sync complete.');
+    logger.info('Sync complete.');
   } catch (error) {
-    console.error('Error during sync:', error);
+    logger.error(`Error during sync: ${error}`);
   } finally {
     db.close();
   }
@@ -55,12 +56,12 @@ async function fetchPages(url, params = {}, db) {
   };
 
   while (nextUrl) {
-    console.log(`Fetching: ${nextUrl.toString()}`);
+    logger.info(`Fetching: ${nextUrl.toString()}`);
     const response = await fetch(nextUrl);
     
     if (!response.ok) {
        if (response.status === 429) {
-          console.warn("Rate limited. Waiting 60s...");
+          logger.warn("Rate limited. Waiting 60s...");
           await new Promise(r => setTimeout(r, 60000));
           continue;
        }
@@ -69,11 +70,11 @@ async function fetchPages(url, params = {}, db) {
 
     const toots = await response.json();
     if (!Array.isArray(toots) || toots.length === 0) {
-      console.log('No toots found in this page.');
+      logger.info('No toots found in this page.');
       break;
     }
 
-    console.log(`Processing ${toots.length} toots...`);
+    logger.info(`Processing ${toots.length} toots...`);
     let newCount = 0;
     
     for (const toot of toots) {
@@ -81,10 +82,10 @@ async function fetchPages(url, params = {}, db) {
         db.insert(toot); // Insert or Ignore
         newCount++;
       } catch (e) {
-        console.error(`Failed to insert toot ${toot.id}:`, e);
+        logger.error(`Failed to insert toot ${toot.id}: ${e}`);
       }
     }
-    console.log(`Saved ${newCount} toots.`);
+    logger.info(`Saved ${newCount} toots.`);
 
     // Pagination Logic
     const linkHeader = response.headers.get('Link');
