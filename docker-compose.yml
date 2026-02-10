@@ -7,6 +7,7 @@ services:
     environment:
       - NODE_ENV=production
       - DB_PATH=/data/toot_history.db
+      - MEDIA_PATH=/data/media
       - MASTODON_URL=https://bne.social
       - MASTODON_ACCOUNT_ID=108220093791881796
       - CRON_SCHEDULE=0 * * * *

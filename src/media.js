@@ -39,7 +39,7 @@ export async function processBackfill(db) {
  * @param {Object} toot 
  */
 async function downloadMediaForToot(toot) {
-  const mediaFolder = path.join('data', 'media', toot.id);
+  const mediaFolder = path.join(config.mediaPath, toot.id);
   
   for (const attachment of toot.media_attachments) {
     if (!attachment.url) continue;
@@ -52,6 +52,9 @@ async function downloadMediaForToot(toot) {
 
     const filename = `${attachment.id}${ext}`;
     const filePath = path.join(mediaFolder, filename);
+
+    // Create folder if not exists
+    await fs.mkdir(mediaFolder, { recursive: true });
 
     // Check if exists
     try {
