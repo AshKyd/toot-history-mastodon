@@ -1,0 +1,17 @@
+services:
+  toot-history:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+    environment:
+      - NODE_ENV=production
+      - DB_PATH=/data/toot_history.db
+      - MASTODON_URL=https://bne.social
+      - MASTODON_ACCOUNT_ID=108220093791881796
+      - CRON_SCHEDULE=0 * * * *
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
